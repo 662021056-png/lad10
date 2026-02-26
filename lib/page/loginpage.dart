@@ -1,167 +1,208 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:lad10/page/show_produsct.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+// 1. ต้อง Import ไฟล์ปลายทางเสมอ
 
-class LoginPage extends StatefulWidget {
-  const LoginPage({Key? key}) : super(key: key);
+
+class Loginpage extends StatefulWidget {
+  const Loginpage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  State<Loginpage> createState() => _LoginpageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
-
-  TextEditingController username = TextEditingController();
-  TextEditingController password = TextEditingController();
+class _LoginpageState extends State<Loginpage> {
+  final TextEditingController username = TextEditingController();
+  final TextEditingController password = TextEditingController();
+  bool isLoading = false;
 
   Future<void> login() async {
+    if (username.text.isEmpty || password.text.isEmpty) return;
 
-    // ✅ ตรวจสอบฟอร์ม
-    if (username.text.isEmpty || password.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("กรุณากรอก Username และ Password")),
+    setState(() => isLoading = true);
+
+    try {
+      var body = jsonEncode({
+        "username": username.text,
+        "password": password.text,
+      });
+
+      var url = Uri.parse("http://10.0.2.2:3000/api/auth/login");
+      var response = await http.post(
+        url,
+        body: body,
+        headers: {HttpHeaders.contentTypeHeader: "application/json"},
       );
-      return;
+
+      debugPrint(response.body);
+
+      if (response.statusCode == 200) {
+        var result = jsonDecode(response.body);
+        SharedPreferences prefs = await SharedPreferences.getInstance();
+
+        await prefs.setString('token', result['accessToken']);
+
+        // ✅ 2. คำสั่งเด้งไปหน้า show_produsct.dart
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const ShowProductPage()),
+        );
+      } else {
+        _showSnackBar("Login Failed!");
+      }
+    } catch (e) {
+      _showSnackBar("Error connecting to server: $e");
+    } finally {
+      setState(() => isLoading = false);
     }
+  }
 
-    // ✅ แปลงเป็น JSON
-    var body = jsonEncode({
-      "username": username.text,
-      "password": password.text,
-    });
-
-    // ✅ URL API
-    var url = Uri.parse("http://10.0.2.2:3000/api/auth/login");
-
-    // ✅ await + async + http.post
-    var response = await http.post(
-      url,
-      body: body,
-      headers: {
-        "Content-Type": "application/json",
-      },
-    );
-
-    // ✅ ตรวจสอบสถานะ 200
-    if (response.statusCode == 200) {
-
-      var result = jsonDecode(response.body);
-
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-
-      await prefs.setString('user', jsonEncode(result['user']));
-      await prefs.setString('token', result['token']);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("For The Emperor! Login Success")),
-      );
-
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Heretic Detected! Login Failed")),
-      );
-    }
+  void _showSnackBar(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0D0D0D),
-      body: Center(
-        child: Container(
-          width: 360,
-          padding: const EdgeInsets.all(25),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1A1A1A),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.red.shade900, width: 2),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.red.shade900.withOpacity(0.7),
-                blurRadius: 25,
-                spreadRadius: 2,
-              )
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-
-              const Icon(Icons.shield, color: Colors.red, size: 60),
-              const SizedBox(height: 15),
-
-              const Text(
-                "IMPERIAL ACCESS",
-                style: TextStyle(
-                  color: Colors.amber,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 2,
-                ),
+      body: Padding(
+        padding: const EdgeInsets.all(25.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.shield, color: Colors.red, size: 60),
+            const SizedBox(height: 30),
+            TextField(
+              controller: username,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(labelText: "Username", labelStyle: TextStyle(color: Colors.red)),
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: password,
+              obscureText: true,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(labelText: "Password", labelStyle: TextStyle(color: Colors.red)),
+            ),
+            const SizedBox(height: 40),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: isLoading ? null : login,
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade900),
+                child: isLoading ? const CircularProgressIndicator() : const Text("ENTER THE BATTLE"),
               ),
-
-              const SizedBox(height: 30),
-
-              TextField(
-                controller: username,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: "Username",
-                  labelStyle: const TextStyle(color: Colors.redAccent),
-                  filled: true,
-                  fillColor: const Color(0xFF262626),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              TextField(
-                controller: password,
-                obscureText: true,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: "Password",
-                  labelStyle: const TextStyle(color: Colors.redAccent),
-                  filled: true,
-                  fillColor: const Color(0xFF262626),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 30),
-
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: login,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red.shade900,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    elevation: 10,
-                  ),
-                  child: const Text(
-                    "ENTER THE BATTLE",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
+
+
+
+
+
+
+// class LoginPage extends StatefulWidget {
+//   const LoginPage({Key? key}) : super(key: key);
+
+//   @override
+//   State<LoginPage> createState() => _LoginPageState();
+// }
+
+// class _LoginPageState extends State<LoginPage> {
+//   final TextEditingController username = TextEditingController();
+//   final TextEditingController password = TextEditingController();
+//   bool isLoading = false;
+
+//   Future<void> login() async {
+//     if (username.text.isEmpty || password.text.isEmpty) return;
+
+//     setState(() => isLoading = true);
+
+//     debugPrint(username.text);
+
+//     try {
+//       var body = jsonEncode({
+//         "username": username.text,
+//         "password": password.text,
+//       });
+
+//       var url = Uri.parse("http://10.0.2.2:3000/api/auth/login");
+//       var response = await http.post(
+//         url,
+//         body: body,
+//         headers: {HttpHeaders.contentTypeHeader: "application/json"},
+//       );
+
+//       debugPrint(response.body);
+
+//       // if (response.statusCode == 200) {
+//       //   var result = jsonDecode(response.body);
+//       //   SharedPreferences prefs = await SharedPreferences.getInstance();
+//       //   await prefs.setString('token', result['token']);
+
+//       //   if (!mounted) return;
+
+//       //   // ✅ 2. คำสั่งเด้งไปหน้า show_produsct.dart
+//       //   Navigator.pushReplacement(
+//       //     context,
+//       //     MaterialPageRoute(builder: (context) => const ShowProductPage()),
+//       //   );
+//       // } else {
+//       //   _showSnackBar("Login Failed!");
+//       // }
+//     } catch (e) {
+//       _showSnackBar("Error connecting to server");
+//     } finally {
+//       setState(() => isLoading = false);
+//     }
+//   }
+
+//   void _showSnackBar(String msg) {
+//     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+//   }
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return Scaffold(
+//       backgroundColor: const Color(0xFF0D0D0D),
+//       body: Padding(
+//         padding: const EdgeInsets.all(25.0),
+//         child: Column(
+//           mainAxisAlignment: MainAxisAlignment.center,
+//           children: [
+//             const Icon(Icons.shield, color: Colors.red, size: 60),
+//             const SizedBox(height: 30),
+//             TextField(
+//               controller: username,
+//               style: const TextStyle(color: Colors.white),
+//               decoration: const InputDecoration(labelText: "Username", labelStyle: TextStyle(color: Colors.red)),
+//             ),
+//             const SizedBox(height: 20),
+//             TextField(
+//               controller: password,
+//               obscureText: true,
+//               style: const TextStyle(color: Colors.white),
+//               decoration: const InputDecoration(labelText: "Password", labelStyle: TextStyle(color: Colors.red)),
+//             ),
+//             const SizedBox(height: 40),
+//             SizedBox(
+//               width: double.infinity,
+//               child: ElevatedButton(
+//                 onPressed: isLoading ? null : login,
+//                 style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade900),
+//                 child: isLoading ? const CircularProgressIndicator() : const Text("ENTER THE BATTLE"),
+//               ),
+//             ),
+//           ],
+//         ),
+//       ),
+//     );
+//   }
+// }
